@@ -31,6 +31,7 @@ const createChromeBrowser = async () => {
       await twitterPage.setCookie(cookie);
     }
     await twitterPage.goto("https://twitter.com/home");
+    await twitterPage.addStyleTag({ content: `* {background: red;}` });
 
     const facebookCookies = chromeCookies.cookies("facebook.com");
     const facebookPage = await chromeBrowser.newPage();
@@ -38,6 +39,7 @@ const createChromeBrowser = async () => {
       await facebookPage.setCookie(cookie);
     }
     await facebookPage.goto("https://www.facebook.com");
+    await facebookPage.addStyleTag({ content: `* {background: red;}` });
   } catch (error) {
     console.error(error);
   }
