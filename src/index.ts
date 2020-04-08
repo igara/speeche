@@ -105,7 +105,6 @@ const twitterSpeech = () => {
       }
 
       await speak(voice, "ツイート内容");
-      await sleep(1000);
       const commentElement = tweetElement.querySelector("[lang]");
       const comment = commentElement && commentElement.textContent;
       if (comment) await speak(voice, comment);
@@ -119,7 +118,7 @@ const twitterSpeech = () => {
       console.error(error);
     } finally {
       await sleep(4000);
-      location.reload();
+      location.href = "https://twitter.com/home";
     }
   };
 
