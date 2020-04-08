@@ -1,3 +1,4 @@
+const webpack = require("webpack");
 const path = require("path");
 // プラグインのインポート
 const createElectronReloadWebpackPlugin = require("electron-reload-webpack-plugin");
@@ -89,7 +90,12 @@ const renderer = {
     ],
   },
   // プラグイン起動
-  plugins: [ElectronReloadWebpackPlugin()],
+  plugins: [
+    ElectronReloadWebpackPlugin(),
+    new webpack.ProvidePlugin({
+      React: "react",
+    }),
+  ],
   devtool: "inline-source-map",
 };
 

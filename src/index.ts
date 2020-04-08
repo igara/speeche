@@ -6,44 +6,18 @@ import * as electron from "electron";
 import * as path from "path";
 import * as puppeteer from "puppeteer-core";
 
-import * as chromeCookies from "./cookies";
-
 const isDevelopment = process.env.NODE_ENV !== "production";
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
-let win: electron.BrowserWindow | null;
+let menuWindow: electron.BrowserWindow | null;
+let twitterWindow: electron.BrowserWindow | null;
+let facebookWindow: electron.BrowserWindow | null;
+
+const sleep = (msec: number) => new Promise(resolve => setTimeout(resolve, msec));
 
 // Scheme must be registered before the app is ready
 electron.protocol.registerSchemesAsPrivileged([{ scheme: "app", privileges: { secure: true, standard: true } }]);
-
-const createChromeBrowser = async () => {
-  try {
-    const chromeBrowser = await puppeteer.launch({
-      executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-      // userDataDir: path.resolve(path.join(process.env.HOME || "", "Library/Application Support/Google/Chrome")),
-      headless: false,
-    });
-
-    const twitterCookies = chromeCookies.cookies("twitter.com");
-    const twitterPage = await chromeBrowser.newPage();
-    for (const cookie of twitterCookies) {
-      await twitterPage.setCookie(cookie);
-    }
-    await twitterPage.goto("https://twitter.com/home");
-    await twitterPage.addStyleTag({ content: `* {background: red;}` });
-
-    const facebookCookies = chromeCookies.cookies("facebook.com");
-    const facebookPage = await chromeBrowser.newPage();
-    for (const cookie of facebookCookies) {
-      await facebookPage.setCookie(cookie);
-    }
-    await facebookPage.goto("https://www.facebook.com");
-    await facebookPage.addStyleTag({ content: `* {background: red;}` });
-  } catch (error) {
-    console.error(error);
-  }
-};
 
 const createSlackBrowser = async () => {
   try {
@@ -81,9 +55,140 @@ const createDiscordBrowser = async () => {
   }
 };
 
-const createWindow = async () => {
+const getTweetDatetime = () => {
+  const tweetElement = document.querySelector("section > div > div > div > div");
+  if (!tweetElement || !tweetElement.textContent) return "";
+
+  const timeElement = tweetElement.querySelector("time");
+  const datetime = timeElement && timeElement.getAttribute("datetime");
+
+  return datetime || "";
+};
+
+const twitterSpeech = () => {
+  const voice =
+    window.speechSynthesis.getVoices().find(voice => {
+      return voice.name === "Google　日本語";
+    }) || speechSynthesis.getVoices()[0];
+
+  const speak = (voice: SpeechSynthesisVoice, text: string) => {
+    const speechSynthesisUtterance = new SpeechSynthesisUtterance();
+    speechSynthesisUtterance.voice = voice;
+
+    const audio = new SpeechSynthesisUtterance(text);
+    window.speechSynthesis.speak(audio);
+
+    return new Promise(resolve => {
+      audio.onend = resolve;
+    });
+  };
+
+  const sleep = (msec: number) => new Promise(resolve => setTimeout(resolve, msec));
+
+  const exec = async () => {
+    try {
+      const tweetElement = document.querySelector("section > div > div > div > div");
+      if (!tweetElement || !tweetElement.textContent) return;
+
+      await speak(voice, "Twitter");
+
+      const ltrElement = tweetElement.querySelector("[role=link] [dir=ltr]");
+      const ltr = ltrElement && ltrElement.textContent;
+      if (ltr) {
+        await speak(voice, ltr);
+      }
+
+      const autoElement = tweetElement.querySelector("[role=link] [dir=auto]");
+      const auto = autoElement && autoElement.textContent;
+      if (auto) {
+        await speak(voice, auto);
+      }
+
+      await speak(voice, "ツイート内容");
+      await sleep(1000);
+      const commentElement = tweetElement.querySelector("[lang]");
+      const comment = commentElement && commentElement.textContent;
+      if (comment) await speak(voice, comment);
+
+      const groupElement = tweetElement.querySelector("[role=group] [aria-label]");
+      const group = groupElement && groupElement.getAttribute("aria-label");
+      if (group && group !== "返信") {
+        await speak(voice, group);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      await sleep(4000);
+      location.reload();
+    }
+  };
+
+  exec();
+};
+
+const createTwitterWindow = async () => {
   // Create the browser window.
-  win = new electron.BrowserWindow({
+  twitterWindow = new electron.BrowserWindow({
+    width: 800,
+    height: 600,
+    webPreferences: {
+      nodeIntegration: false,
+    },
+  });
+
+  const url = "https://twitter.com/home";
+  twitterWindow.loadURL(url);
+
+  let latestDatetime: null | string;
+
+  twitterWindow.webContents.on("did-stop-loading", async () => {
+    if (!twitterWindow) return;
+
+    const href = await twitterWindow.webContents.executeJavaScript("location.href", true);
+    if (href !== url) return;
+
+    await sleep(5000);
+    const datetime = await twitterWindow.webContents.executeJavaScript(
+      `var getTweetDatetime = ${getTweetDatetime.toString()};getTweetDatetime();`,
+      true,
+    );
+
+    if (latestDatetime !== datetime) {
+      latestDatetime = datetime;
+      await twitterWindow.webContents.executeJavaScript(
+        `var twitterSpeech = ${twitterSpeech.toString()};twitterSpeech();`,
+        true,
+      );
+    } else {
+      twitterWindow.webContents.reload();
+    }
+  });
+
+  twitterWindow.on("closed", () => {
+    twitterWindow = null;
+  });
+};
+
+const createFacebookWindow = async () => {
+  // Create the browser window.
+  facebookWindow = new electron.BrowserWindow({
+    width: 800,
+    height: 600,
+    webPreferences: {
+      nodeIntegration: false,
+    },
+  });
+
+  facebookWindow.loadURL("https://www.facebook.com");
+
+  facebookWindow.on("closed", () => {
+    facebookWindow = null;
+  });
+};
+
+const createMenuWindow = async () => {
+  // Create the browser window.
+  menuWindow = new electron.BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
@@ -91,10 +196,10 @@ const createWindow = async () => {
     },
   });
 
-  win.loadURL(`file://${__dirname}/index.html`);
+  menuWindow.loadURL(`file://${__dirname}/index.html`);
 
-  win.on("closed", () => {
-    win = null;
+  menuWindow.on("closed", () => {
+    menuWindow = null;
   });
 };
 
@@ -110,8 +215,8 @@ electron.app.on("window-all-closed", () => {
 electron.app.on("activate", async () => {
   // On macOS it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
-  if (win === null) {
-    await createWindow();
+  if (menuWindow === null) {
+    await createMenuWindow();
   }
 });
 
@@ -119,11 +224,18 @@ electron.app.on("activate", async () => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 electron.app.on("ready", async () => {
-  await createWindow();
+  await createMenuWindow();
 
-  await createChromeBrowser();
-  await createSlackBrowser();
-  await createDiscordBrowser();
+  // await createSlackBrowser();
+  // await createDiscordBrowser();
+});
+
+electron.ipcMain.on("createTwitterWindow", async () => {
+  await createTwitterWindow();
+});
+
+electron.ipcMain.on("createFacebookWindow", async () => {
+  await createFacebookWindow();
 });
 
 // Exit cleanly on request from parent process in development mode.
