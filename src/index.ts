@@ -202,6 +202,11 @@ const createMenuWindow = async () => {
   });
 };
 
+const soundToText = async () => {
+  // Create the browser window.
+  console.log(await electron.desktopCapturer.getSources({ types: ["window", "screen"] }));
+};
+
 // Quit when all windows are closed.
 electron.app.on("window-all-closed", () => {
   // On macOS it is common for applications and their menu bar
@@ -235,6 +240,10 @@ electron.ipcMain.on("createTwitterWindow", async () => {
 
 electron.ipcMain.on("createFacebookWindow", async () => {
   await createFacebookWindow();
+});
+
+electron.ipcMain.on("soundToText", async () => {
+  await soundToText();
 });
 
 // Exit cleanly on request from parent process in development mode.
