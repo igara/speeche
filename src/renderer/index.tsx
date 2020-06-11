@@ -14,6 +14,9 @@ const AppComponent = () => {
       setSpeechToTextTextAreaValue(`${speechToTextTextAreaValue}
 ${event.results[event.results.length - 1][0].transcript}`);
     };
+    recognition.onend = () => {
+      recognition.start();
+    };
 
     recognition.start();
   });
